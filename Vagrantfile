@@ -11,7 +11,7 @@ CONFIG = File.join(File.dirname(__FILE__), "vagrant/config.rb")
 $num_instances = 3
 $instance_name_prefix = "k8s"
 $vm_gui = false
-$vm_memory = 1536
+$vm_memory = 1024 * 2
 $vm_cpus = 1
 $shared_folders = {}
 $forwarded_ports = {}
@@ -38,17 +38,18 @@ if ! File.exist?(File.join(File.dirname($inventory), "hosts"))
   end
 end
 
-if Vagrant.has_plugin?("vagrant-proxyconf")
-    $no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
-    (1..$num_instances).each do |i|
-        $no_proxy += ",#{$subnet}.#{i+100}"
-    end
-end
+# if Vagrant.has_plugin?("vagrant-proxyconf")
+#     $no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
+#     (1..$num_instances).each do |i|
+#         $no_proxy += ",#{$subnet}.#{i+100}"
+#     end
+# end
 
 Vagrant.configure("2") do |config|
   # always use Vagrants insecure key
   config.ssh.insert_key = false
   config.vm.box = $box
+  config.vm.box_check_update = false
 
   # plugin conflict
   if Vagrant.has_plugin?("vagrant-vbguest") then
@@ -59,11 +60,11 @@ Vagrant.configure("2") do |config|
     config.vm.define vm_name = "%s-%02d" % [$instance_name_prefix, i] do |config|
       config.vm.hostname = vm_name
 
-      if Vagrant.has_plugin?("vagrant-proxyconf")
-        config.proxy.http     = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ""
-        config.proxy.https    = ENV['HTTPS_PROXY'] || ENV['https_proxy'] ||  ""
-        config.proxy.no_proxy = $no_proxy
-      end
+      # if Vagrant.has_plugin?("vagrant-proxyconf")
+      #   config.proxy.http     = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ""
+      #   config.proxy.https    = ENV['HTTPS_PROXY'] || ENV['https_proxy'] ||  ""
+      #   config.proxy.no_proxy = $no_proxy
+      # end
 
       if $expose_docker_tcp
         config.vm.network "forwarded_port", guest: 2375, host: ($expose_docker_tcp + i - 1), auto_correct: true
@@ -113,13 +114,14 @@ Vagrant.configure("2") do |config|
           #ansible.tags = ['download']
           ansible.groups = {
             # The first three nodes should be etcd servers
-            "etcd" => ["#{$instance_name_prefix}-0[1:3]"],
+            "etcd" => ["#{$instance_name_prefix}-0[1:1]"],
             # The first two nodes should be masters
-            "kube-master" => ["#{$instance_name_prefix}-0[1:2]"],
+            "kube-master" => ["#{$instance_name_prefix}-0[1:1]"],
             # all nodes should be kube nodes
-            "kube-node" => ["#{$instance_name_prefix}-0[1:#{$num_instances}]"],
+            "kube-node" => ["#{$instance_name_prefix}-0[2:#{$num_instances}]"],
             "k8s-cluster:children" => ["kube-master", "kube-node"],
           }
+          ansible.verbose = 'v'
         end
       end
 
